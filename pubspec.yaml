@@ -42,6 +42,7 @@ dependencies:
   flutter_speech: ^2.0.1
   firebase_auth: ^5.6.2
   cloud_firestore: ^5.6.11
+  flutter_native_splash: ^2.4.6
 
 dev_dependencies:
   flutter_test:
@@ -97,3 +98,15 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+flutter_native_splash:
+  color: "#0A0E21"
+  icon_background_color: "#2D1B69"
+  image: assets/splash_logo.png
+  android_12:
+    color: "#0A0E21"
+    image: assets/splash_logo.png
+    fullscreen: true
+    android_gravity: center
+    ios_content_mode: center
+
+  web: false
