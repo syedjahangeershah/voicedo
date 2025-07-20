@@ -43,12 +43,12 @@ class VoiceService extends ChangeNotifier {
         _isAvailable = result;
         _error = null;
         notifyListeners();
-        print('✅ Speech recognition initialized: $_isAvailable');
+        debugPrint('✅ Speech recognition initialized: $_isAvailable');
       });
 
     } catch (e) {
       _error = 'Failed to initialize speech recognition: $e';
-      print('❌ Speech initialization error: $e');
+      debugPrint('❌ Speech initialization error: $e');
       notifyListeners();
     }
   }
@@ -62,7 +62,7 @@ class VoiceService extends ChangeNotifier {
     }
 
     if (_isListening) {
-      print('⚠️ Already listening');
+      debugPrint('⚠️ Already listening');
       return null;
     }
 
@@ -84,7 +84,7 @@ class VoiceService extends ChangeNotifier {
       // Start listening
       _speech!.listen();
 
-      print('🎤 Started listening...');
+      debugPrint('🎤 Started listening...');
 
       // Return the result when recognition completes
       return await completer.future;
@@ -92,7 +92,7 @@ class VoiceService extends ChangeNotifier {
     } catch (e) {
       _error = 'Failed to start listening: $e';
       _onSystemError?.call('❌ Failed to start listening: $e');
-      print('❌ Listen error: $e');
+      debugPrint('❌ Listen error: $e');
       notifyListeners();
       return null;
     }
@@ -102,7 +102,7 @@ class VoiceService extends ChangeNotifier {
   Future<void> stopListening() async {
     if (_speech != null && _isListening) {
       _speech!.stop();
-      print('🛑 Stopped listening');
+      debugPrint('🛑 Stopped listening');
     }
   }
 
@@ -113,7 +113,7 @@ class VoiceService extends ChangeNotifier {
       _isListening = false;
       _lastWords = '';
       notifyListeners();
-      print('❌ Cancelled listening');
+      debugPrint('❌ Cancelled listening');
     }
   }
 
@@ -121,27 +121,27 @@ class VoiceService extends ChangeNotifier {
   void _onSpeechAvailability(bool available) {
     _isAvailable = available;
     notifyListeners();
-    print('🔊 Speech availability: $available');
+    debugPrint('🔊 Speech availability: $available');
   }
 
   void _onRecognitionStarted() {
     _isListening = true;
     _error = null;
     notifyListeners();
-    print('🎙️ Recognition started');
+    debugPrint('🎙️ Recognition started');
   }
 
   void _onRecognitionResult(String text) {
     _lastWords = text;
     notifyListeners();
-    print('📝 Recognition result: $text');
+    debugPrint('📝 Recognition result: $text');
   }
 
   void _onRecognitionComplete(String text) {
     _isListening = false;
     _lastWords = text;
     notifyListeners();
-    print('✅ Recognition complete: $text');
+    debugPrint('✅ Recognition complete: $text');
   }
 
 
@@ -152,12 +152,12 @@ class VoiceService extends ChangeNotifier {
   void _onSpeechError() {
     _isListening = false;
     _error = 'Speech recognition error occurred';
-    print('❌ Speech error occurred');
+    debugPrint('❌ Speech error occurred');
 
     _onSystemError?.call('Speech recognition failed. Please try again.');
 
     // Reset speech recognition on error
-    print('🔄 Resetting speech recognition due to error');
+    debugPrint('🔄 Resetting speech recognition due to error');
 
     _resetSpeechRecognition();
     notifyListeners();
@@ -166,7 +166,7 @@ class VoiceService extends ChangeNotifier {
   // Reset speech recognition when it gets stuck
   Future<void> _resetSpeechRecognition() async {
     try {
-      print('🔄 Resetting speech recognition...');
+      debugPrint('🔄 Resetting speech recognition...');
 
       // Cancel any ongoing recognition
       if (_speech != null) {
@@ -186,10 +186,10 @@ class VoiceService extends ChangeNotifier {
         _speech!.activate('en_US').then((result) {
           _isAvailable = result;
           notifyListeners();
-          print('✅ Speech recognition reset complete: $_isAvailable');
+          debugPrint('✅ Speech recognition reset complete: $_isAvailable');
           _onSystemError?.call('✅ Speech reactivated successfully!');
         }).catchError((e) {
-          print('❌ Failed to reactivate speech: $e');
+          debugPrint('❌ Failed to reactivate speech: $e');
           _onSystemError?.call('❌ Failed to reactivate speech: $e');
           _error = 'Speech reactivation failed';
           _isAvailable = false;
@@ -198,7 +198,7 @@ class VoiceService extends ChangeNotifier {
       }
 
     } catch (e) {
-      print('❌ Failed to reset speech recognition: $e');
+      debugPrint('❌ Failed to reset speech recognition: $e');
       _onSystemError?.call('❌ Failed to reactivate speech: $e');
       _error = 'Speech recognition reset failed';
       _isAvailable = false;

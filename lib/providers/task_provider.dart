@@ -64,7 +64,7 @@ class TaskProvider extends ChangeNotifier {
     if (_firebaseService?.currentUserId == null || _isListeningToTasks) return;
 
     try {
-      print(
+      debugPrint(
         '🔄 Starting real-time task listener for user: ${_firebaseService?.currentUserId}',
       );
 
@@ -81,14 +81,14 @@ class TaskProvider extends ChangeNotifier {
           _handleTasksSnapshot(snapshot);
         },
         onError: (error) {
-          print('❌ Task listener error: $error');
+          debugPrint('❌ Task listener error: $error');
           addSystemErrorMessage('Task sync failed: $error');
         },
       );
 
-      print('✅ Task listener started successfully');
+      debugPrint('✅ Task listener started successfully');
     } catch (e) {
-      print('❌ Failed to start task listener: $e');
+      debugPrint('❌ Failed to start task listener: $e');
       addSystemErrorMessage('Failed to sync tasks: $e');
       _isListeningToTasks = false;
     }
@@ -96,7 +96,7 @@ class TaskProvider extends ChangeNotifier {
 
   void _handleTasksSnapshot(QuerySnapshot snapshot) {
     try {
-      print('🔄 Received ${snapshot.docs.length} tasks from Firestore');
+      debugPrint('🔄 Received ${snapshot.docs.length} tasks from Firestore');
 
       final firestoreTasks = snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
@@ -126,10 +126,10 @@ class TaskProvider extends ChangeNotifier {
       // Update local tasks array
       _tasks = firestoreTasks;
 
-      print('✅ Updated local tasks: ${_tasks.length} tasks');
+      debugPrint('✅ Updated local tasks: ${_tasks.length} tasks');
       notifyListeners();
     } catch (e, stackTrace) {
-      print('❌ Error processing task snapshot: $e \n$stackTrace');
+      debugPrint('❌ Error processing task snapshot: $e \n$stackTrace');
       addSystemErrorMessage('Failed to process task updates: $e');
     }
   }
@@ -137,7 +137,7 @@ class TaskProvider extends ChangeNotifier {
   // Stop listening to tasks
   void stopListeningToTasks() {
     if (_tasksSubscription != null) {
-      print('🛑 Stopping task listener');
+      debugPrint('🛑 Stopping task listener');
       _tasksSubscription!.cancel();
       _tasksSubscription = null;
       _isListeningToTasks = false;
@@ -158,7 +158,7 @@ class TaskProvider extends ChangeNotifier {
     _voiceService?.addListener(() {
       // If voice service has an error, stop recording
       if (_voiceService!.error != null && _isRecording) {
-        print('❌ Voice service error detected, stopping recording UI');
+        debugPrint('❌ Voice service error detected, stopping recording UI');
         _isRecording = false;
         notifyListeners();
       }
@@ -187,7 +187,7 @@ class TaskProvider extends ChangeNotifier {
       ),
     );
     notifyListeners();
-    print('🔴 System error added to chat: $errorText');
+    debugPrint('🔴 System error added to chat: $errorText');
   }
 
   void clearMessages() {
@@ -202,7 +202,7 @@ class TaskProvider extends ChangeNotifier {
         return;
       }
 
-      print('💾 Creating task in Firestore: ${task.title}');
+      debugPrint('💾 Creating task in Firestore: ${task.title}');
 
       // Save to Firestore
       final taskRef = FirebaseFirestore.instance
@@ -221,7 +221,7 @@ class TaskProvider extends ChangeNotifier {
       };
       await taskRef.set(taskData);
 
-      print('✅ Task created in Firestore: ${task.title}');
+      debugPrint('✅ Task created in Firestore: ${task.title}');
 
       // Notify Gemini about task creation for context synchronization
       // Real-time listener will automatically update local _tasks array
@@ -236,7 +236,7 @@ class TaskProvider extends ChangeNotifier {
         });
       });
     } catch (e) {
-      print('❌ Error creating task in Firestore: $e');
+      debugPrint('❌ Error creating task in Firestore: $e');
       addSystemErrorMessage('Failed to create task: $e');
     }
   }
@@ -252,7 +252,7 @@ class TaskProvider extends ChangeNotifier {
     int taskIndex;
     if (number != null) {
       // User provided task number (1-based index)
-      print('🔢 Updating task by number: $number');
+      debugPrint('🔢 Updating task by number: $number');
 
       if (number < 1 || number > _tasks.length) {
         addSystemErrorMessage(
@@ -264,7 +264,7 @@ class TaskProvider extends ChangeNotifier {
       taskIndex = number - 1;
     } else {
       // User provided task ID
-      print('🆔 Updating task by ID: $id');
+      debugPrint('🆔 Updating task by ID: $id');
       taskIndex = _tasks.indexWhere((task) => task.id == id);
     }
 
@@ -300,7 +300,7 @@ class TaskProvider extends ChangeNotifier {
       int taskIndex;
       if (number != null) {
         // User provided task number (1-based index)
-        print('🔢 Deleting task by number: $number');
+        debugPrint('🔢 Deleting task by number: $number');
 
         if (number < 1 || number > _tasks.length) {
           addSystemErrorMessage(
@@ -312,12 +312,12 @@ class TaskProvider extends ChangeNotifier {
         taskIndex = number - 1; // Convert to 0-based index
       } else {
         // User provided task ID
-        print('🆔 Deleting task by ID: $id');
+        debugPrint('🆔 Deleting task by ID: $id');
         taskIndex = _tasks.indexWhere((task) => task.id == id);
       }
 
       final taskToDelete = _tasks[taskIndex];
-      print('🗑️ Deleting task from Firestore: ${taskToDelete.title}');
+      debugPrint('🗑️ Deleting task from Firestore: ${taskToDelete.title}');
 
       // Delete from Firestore using the task ID
       await FirebaseFirestore.instance
@@ -327,7 +327,7 @@ class TaskProvider extends ChangeNotifier {
           .doc(taskToDelete.id) // Always use the actual Firestore ID
           .delete();
 
-      print('✅ Task deleted from Firestore: ${taskToDelete.title}');
+      debugPrint('✅ Task deleted from Firestore: ${taskToDelete.title}');
 
       // Notify Gemini about task deletion for context synchronization
       Future.delayed(const Duration(seconds: 3), () {
@@ -340,7 +340,7 @@ class TaskProvider extends ChangeNotifier {
         });
       });
     } catch (e) {
-      print('❌ Error deleting task from Firestore: $e');
+      debugPrint('❌ Error deleting task from Firestore: $e');
       addSystemErrorMessage('Failed to delete task: $e');
     }
   }
@@ -348,7 +348,7 @@ class TaskProvider extends ChangeNotifier {
   Future<void> updateUserName(String newName) async {
     try {
       final trimmedName = newName.trim();
-      print('👤 Updating user name to: $trimmedName');
+      debugPrint('👤 Updating user name to: $trimmedName');
 
       // Update name in Firestore users collection
       await FirebaseFirestore.instance
@@ -359,7 +359,7 @@ class TaskProvider extends ChangeNotifier {
       // Update the name in FirebaseService as well
       await _firebaseService!.updateUserName(trimmedName);
 
-      print('✅ User name updated successfully to: $trimmedName');
+      debugPrint('✅ User name updated successfully to: $trimmedName');
 
       Future.delayed(const Duration(seconds: 3), () {
         _notifyGeminiTaskOperation('user_name_updated', {
@@ -368,7 +368,7 @@ class TaskProvider extends ChangeNotifier {
         });
       });
     } catch (e) {
-      print('❌ Error updating user name: $e');
+      debugPrint('❌ Error updating user name: $e');
       addSystemErrorMessage('Failed to update name: $e');
     }
   }
@@ -382,9 +382,9 @@ class TaskProvider extends ChangeNotifier {
     if (_voiceService != null) {
       try {
         await _voiceService!.startListening();
-        print('🎤 Voice service started listening');
+        debugPrint('🎤 Voice service started listening');
       } catch (e) {
-        print('❌ Failed to start voice service: $e');
+        debugPrint('❌ Failed to start voice service: $e');
         addSystemErrorMessage(
           'Voice Error -> ❌ Failed to start voice service: $e',
         );
@@ -401,9 +401,9 @@ class TaskProvider extends ChangeNotifier {
     // Actually stop voice service
     try {
       await _voiceService!.stopListening();
-      print('🛑 Voice service stopped listening');
+      debugPrint('🛑 Voice service stopped listening');
     } catch (e) {
-      print('❌ Failed to stop voice service: $e');
+      debugPrint('❌ Failed to stop voice service: $e');
       addSystemErrorMessage(
         'Voice Error -> ❌ Failed to stop voice service: $e',
       );
@@ -427,16 +427,17 @@ class TaskProvider extends ChangeNotifier {
       final speechText = _voiceService?.lastWords ?? '';
 
       if (speechText.isEmpty) {
-        print('⚠️ No speech detected');
+        debugPrint('⚠️ No speech detected');
         addSystemErrorMessage('⚠️ No speech detected. Please try again.');
         return 'No speech detected. Please try again.';
       }
 
-      print('🎤 Speech recognized: $speechText');
+      debugPrint('🎤 Speech recognized: $speechText');
       addMessage(speechText, MessageType.user);
 
       // Send to Gemini for processing
       if (_geminiChatService != null) {
+        debugPrint('📤 Sending to model: ${_geminiChatService!.currentModelId}');
         final response = await _geminiChatService!.sendMessage(speechText);
 
         addMessage(
@@ -444,14 +445,14 @@ class TaskProvider extends ChangeNotifier {
           MessageType.assistant,
         );
 
-        print('🤖 Gemini response: $response');
+        debugPrint('🤖 Gemini response: $response');
         return response ?? 'Task processed successfully!';
       } else {
-        print('❌ Gemini chat service not available');
+        debugPrint('❌ Gemini chat service not available');
         return 'Chat service not available';
       }
     } catch (e) {
-      print('❌ Error processing voice command: $e');
+      debugPrint('❌ Error processing voice command: $e');
       addSystemErrorMessage('Voice processing failed: $e');
       return 'Voice processing failed: $e';
     } finally {
@@ -465,7 +466,7 @@ class TaskProvider extends ChangeNotifier {
     String functionName,
     Map<String, Object?> arguments,
   ) {
-    print('🎯 TaskProvider handling: $functionName');
+    debugPrint('🎯 TaskProvider handling: $functionName');
 
     try {
       switch (functionName) {
@@ -478,11 +479,11 @@ class TaskProvider extends ChangeNotifier {
         case 'update_user_name':
           return _handleUpdateUserName(arguments);
         default:
-          print('⚠️ Unknown function: $functionName');
+          debugPrint('⚠️ Unknown function: $functionName');
           return null;
       }
     } catch (e) {
-      print('❌ Error in handleGeminiFunctionCall: $e');
+      debugPrint('❌ Error in handleGeminiFunctionCall: $e');
       addSystemErrorMessage('Function call error: $e');
       return {'success': false, 'error': e.toString()};
     }
@@ -506,7 +507,7 @@ class TaskProvider extends ChangeNotifier {
 
     addTask(task);
 
-    print('✅ Created task: ${task.title}');
+    debugPrint('✅ Created task: ${task.title}');
 
     return {
       'task_id': task.id,
@@ -565,7 +566,7 @@ class TaskProvider extends ChangeNotifier {
 
     final updatedTask = _tasks[taskIndex];
 
-    print('✅ Updated task: ${updatedTask.title}');
+    debugPrint('✅ Updated task: ${updatedTask.title}');
 
     return {
       'task_id': updatedTask.id,
@@ -621,7 +622,7 @@ class TaskProvider extends ChangeNotifier {
 
       updateUserName(trimmedName);
 
-      print('✅ User name update requested: $trimmedName');
+      debugPrint('✅ User name update requested: $trimmedName');
 
       return {
         'success': true,
@@ -637,11 +638,11 @@ class TaskProvider extends ChangeNotifier {
   ) {
     if (_geminiChatService != null) {
       // Don't await to avoid blocking UI operations
-      print('Notifying Gemini about task $operation');
+      debugPrint('Notifying Gemini about task $operation');
       _geminiChatService!.notifyTaskOperation(operation, taskData).catchError((
         e,
       ) {
-        print('⚠️ Failed to notify Gemini about task $operation: $e');
+        debugPrint('⚠️ Failed to notify Gemini about task $operation: $e');
       });
     }
   }
@@ -674,7 +675,7 @@ class TaskProvider extends ChangeNotifier {
 
   // Reset all state
   void reset() {
-    print('🔄 Resetting TaskProvider state');
+    debugPrint('🔄 Resetting TaskProvider state');
 
     // Stop listening to tasks
     stopListeningToTasks();
@@ -693,17 +694,17 @@ class TaskProvider extends ChangeNotifier {
     _tasksSubscription = null;
 
     notifyListeners();
-    print('✅ TaskProvider state reset complete');
+    debugPrint('✅ TaskProvider state reset complete');
   }
 
   // Dispose method
   @override
   void dispose() {
-    print('🗑️ Disposing TaskProvider');
+    debugPrint('🗑️ Disposing TaskProvider');
 
     reset();
 
     super.dispose();
-    print('✅ TaskProvider disposed successfully');
+    debugPrint('✅ TaskProvider disposed successfully');
   }
 }

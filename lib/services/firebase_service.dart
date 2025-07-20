@@ -29,13 +29,13 @@ class FirebaseService extends ChangeNotifier {
 
   Future<bool> initialize() async {
     try {
-      print('🔥 Initializing Firebase service...');
+      debugPrint('🔥 Initializing Firebase service...');
 
       if (isSignedIn) {
         // User already exists
         _currentUserId = auth.currentUser!.uid;
         await _loadUserData();
-        print('✅ Existing user loaded: $_currentUserId');
+        debugPrint('✅ Existing user loaded: $_currentUserId');
       } else {
         // Create new anonymous user
         await _createAnonymousUser();
@@ -47,7 +47,7 @@ class FirebaseService extends ChangeNotifier {
       return true;
 
     } catch (e) {
-      print('❌ Firebase initialization failed: $e');
+      debugPrint('❌ Firebase initialization failed: $e');
       _error = e.toString();
       _isInitialized = false;
       notifyListeners();
@@ -57,7 +57,7 @@ class FirebaseService extends ChangeNotifier {
 
   Future<void> _createAnonymousUser() async {
     try {
-      print('🔐 Creating anonymous user...');
+      debugPrint('🔐 Creating anonymous user...');
 
       final userCredential = await auth.signInAnonymously();
       _currentUserId = userCredential.user?.uid;
@@ -68,11 +68,11 @@ class FirebaseService extends ChangeNotifier {
         });
 
         _userName = 'Anonymous';
-        print('✅ Anonymous user created: $_currentUserId');
+        debugPrint('✅ Anonymous user created: $_currentUserId');
       }
     } catch (e) {
-      print('❌ Error creating anonymous user: $e');
-      throw e;
+      debugPrint('❌ Error creating anonymous user: $e');
+      rethrow;
     }
   }
 
@@ -91,7 +91,7 @@ class FirebaseService extends ChangeNotifier {
         }
       }
     } catch (e) {
-      print('❌ Error loading user data: $e');
+      debugPrint('❌ Error loading user data: $e');
       _userName = 'Anonymous';
     }
   }
@@ -106,11 +106,11 @@ class FirebaseService extends ChangeNotifier {
 
       _userName = newName;
       notifyListeners();
-      print('✅ User name updated to: $newName');
+      debugPrint('✅ User name updated to: $newName');
       return true;
 
     } catch (e) {
-      print('❌ Error updating user name: $e');
+      debugPrint('❌ Error updating user name: $e');
       _error = e.toString();
       notifyListeners();
       return false;

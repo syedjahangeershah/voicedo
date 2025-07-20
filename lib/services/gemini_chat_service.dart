@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert' show json;
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:flutter/material.dart';
 
@@ -7,6 +6,9 @@ class GeminiChatService extends ChangeNotifier {
   ChatSession? _chatSession;
   Function(String, Map<String, Object?>)? _functionHandler;
   Function(String)? _onSystemError;
+
+  String? _currentModelId;
+  String? get currentModelId => _currentModelId;
 
   bool _isProcessing = false;
   String? _error;
@@ -19,11 +21,12 @@ class GeminiChatService extends ChangeNotifier {
   bool get isInitialized => _chatSession != null;
 
   // Initialize chat session
-  void initializeChatSession(ChatSession chatSession) {
+  void initializeChatSession(ChatSession chatSession, {String? modelId}) {
     _chatSession = chatSession;
+    _currentModelId = modelId;
     _error = null;
+    debugPrint('🤖 Chat service initialized with model: $_currentModelId');
     notifyListeners();
-    print('✅ Gemini chat session initialized');
   }
 
   void setErrorCallback(Function(String) onError) {
@@ -33,7 +36,7 @@ class GeminiChatService extends ChangeNotifier {
   // Set function handler for tool calls
   void setFunctionHandler(Function(String, Map<String, Object?>) handler) {
     _functionHandler = handler;
-    print('🔗 Function handler connected to chat service');
+    debugPrint('🔗 Function handler connected to chat service');
   }
 
   Future<String?> sendMessage(String message) async {
@@ -49,7 +52,7 @@ class GeminiChatService extends ChangeNotifier {
       _lastResponse = null;
       notifyListeners();
 
-      print('📤 Sending message to Gemini: $message');
+      debugPrint('📤 Sending message to Gemini: $message');
 
       // Send message to Gemini
       final response = await _chatSession!.sendMessage(Content.multi([TextPart(message)]));
@@ -59,21 +62,21 @@ class GeminiChatService extends ChangeNotifier {
       // Handle initial response text
       if (response.text != null && response.text!.isNotEmpty) {
         finalResponse = response.text!;
-        print('📥 Received text response: ${response.text}');
+        debugPrint('📥 Received text response: ${response.text}');
       }
 
-      print('Processing:: ${response.functionCalls.length} function calls');
+      debugPrint('Processing:: ${response.functionCalls.length} function calls');
 
       // Handle function calls ONLY if they exist
       if (response.functionCalls.isNotEmpty) {
-        print('🔧 Processing ${response.functionCalls.length} function calls');
+        debugPrint('🔧 Processing ${response.functionCalls.length} function calls');
         final functionResponse = await _handleFunctionCalls(response.functionCalls);
 
         if (functionResponse != null && functionResponse.isNotEmpty) {
           finalResponse = functionResponse;
         }
       } else {
-        print('No function calls - using text response only');
+        debugPrint('No function calls - using text response only');
       }
 
       // Set final response
@@ -82,8 +85,8 @@ class GeminiChatService extends ChangeNotifier {
       return _lastResponse;
 
     } catch (e, stackTrace) {
-      print('❌ Error sending message: $e');
-      print('Stack trace: $stackTrace');
+      debugPrint('❌ Error sending message: $e');
+      debugPrint('Stack trace: $stackTrace');
       _error = 'Failed to process request: $e';
       _lastResponse = 'Sorry, error sending message: $e';
       return _lastResponse;
@@ -96,7 +99,7 @@ class GeminiChatService extends ChangeNotifier {
   // Handle function calls from Gemini
   Future<String?> _handleFunctionCalls(Iterable<FunctionCall> functionCalls) async {
     if (_functionHandler == null) {
-      print('❌ No function handler available');
+      debugPrint('❌ No function handler available');
       return 'Function handler not available.';
     }
 
@@ -105,18 +108,18 @@ class GeminiChatService extends ChangeNotifier {
       final functionResponses = <FunctionResponse>[];
 
       for (final functionCall in functionCalls) {
-        print('🔧 Executing function: ${functionCall.name}');
-        print('📋 Arguments: ${functionCall.args}');
+        debugPrint('🔧 Executing function: ${functionCall.name}');
+        debugPrint('📋 Arguments: ${functionCall.args}');
 
         final result = _functionHandler!(functionCall.name, functionCall.args);
 
         if (result != null) {
-          print('✅ Function result: $result');
+          debugPrint('✅ Function result: $result');
           functionResponses.add(
             FunctionResponse(functionCall.name, result),
           );
         } else {
-          print('⚠️ Function returned null result');
+          debugPrint('⚠️ Function returned null result');
           functionResponses.add(
             FunctionResponse(functionCall.name, {
               'success': false,
@@ -128,7 +131,7 @@ class GeminiChatService extends ChangeNotifier {
 
       // Send function responses back to Gemini
       if (functionResponses.isNotEmpty) {
-        print('📤 Sending function responses back to Gemini');
+        debugPrint('📤 Sending function responses back to Gemini');
 
         final functionResultResponse = await _chatSession!.sendMessage(
           Content.functionResponses(functionResponses),
@@ -136,7 +139,7 @@ class GeminiChatService extends ChangeNotifier {
 
         // Return Gemini's response to function results
         if (functionResultResponse.text != null && functionResultResponse.text!.isNotEmpty) {
-          print('📥 Received function result response: ${functionResultResponse.text}');
+          debugPrint('📥 Received function result response: ${functionResultResponse.text}');
           return functionResultResponse.text!;
         }
       }
@@ -144,9 +147,9 @@ class GeminiChatService extends ChangeNotifier {
       return null;
 
     } catch (e, stackTrace) {
-      print('❌ Error handling function calls: $e');
+      debugPrint('❌ Error handling function calls: $e');
       _onSystemError?.call('❌ Error handling function calls: $e');
-      print('Stack trace: $stackTrace');
+      debugPrint('Stack trace: $stackTrace');
       return 'Sorry, I had trouble completing that task.';
     }
   }
@@ -173,7 +176,7 @@ class GeminiChatService extends ChangeNotifier {
         notification = 'System: Task $operation completed';
     }
 
-    print('🔔 Notifying Gemini: $notification');
+    debugPrint('🔔 Notifying Gemini: $notification');
     await sendMessage(notification);
   }
 

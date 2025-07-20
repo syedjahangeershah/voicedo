@@ -1,4 +1,5 @@
 import 'package:firebase_ai/firebase_ai.dart';
+import 'package:flutter/foundation.dart';
 
 class GeminiTools {
   // Function handler for processing function calls
@@ -7,7 +8,7 @@ class GeminiTools {
   // Set the function handler (will be called from provider)
   void setFunctionHandler(Function(String, Map<String, Object?>)? handler) {
     _functionHandler = handler;
-    print(
+    debugPrint(
       '🔗 Function handler ${handler != null ? 'connected' : 'disconnected'}',
     );
   }
@@ -17,7 +18,7 @@ class GeminiTools {
     String functionName,
     Map<String, Object?> arguments,
   ) {
-    print('🔧 Function call: $functionName with arguments: $arguments');
+    debugPrint('🔧 Function call: $functionName with arguments: $arguments');
 
     if (_functionHandler == null) {
       return handleError('Function handler not initialized');
@@ -26,13 +27,13 @@ class GeminiTools {
     try {
       final result = _functionHandler!(functionName, arguments);
       if (result != null) {
-        print('✅ Function result: $result');
+        debugPrint('✅ Function result: $result');
         return Map<String, Object?>.from(result);
       } else {
         return handleError('Function returned null result');
       }
     } catch (e) {
-      print('❌ Function execution error: $e');
+      debugPrint('❌ Function execution error: $e');
       return handleError('Function execution failed: $e');
     }
   }

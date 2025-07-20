@@ -34,17 +34,17 @@ class GeminiToolsProvider extends ChangeNotifier {
   void setTaskProvider(TaskProvider taskProvider) {
     _taskProvider = taskProvider;
     _geminiTools.setFunctionHandler(_handleFunctionCall);
-    print('🔗 Connected TaskProvider to GeminiTools');
+    debugPrint('🔗 Connected TaskProvider to GeminiTools');
   }
 
   // Handle function calls from Gemini
   Map<String, dynamic>? _handleFunctionCall(String functionName, Map<String, Object?> arguments) {
     if (_taskProvider == null) {
-      print('❌ TaskProvider not connected');
+      debugPrint('❌ TaskProvider not connected');
       return null;
     }
 
-    print('🎯 GeminiToolsProvider routing $functionName to TaskProvider');
+    debugPrint('🎯 GeminiToolsProvider routing $functionName to TaskProvider');
     return _taskProvider!.handleGeminiFunctionCall(functionName, arguments);
   }
 

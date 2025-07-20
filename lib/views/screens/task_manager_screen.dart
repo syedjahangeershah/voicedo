@@ -4,7 +4,11 @@ import 'package:provider/provider.dart';
 import 'package:testy/core/constants/app_colors.dart';
 import 'package:testy/core/constants/app_dimensions.dart';
 import 'package:testy/core/constants/app_strings.dart';
+import 'package:testy/providers/gemini_provider.dart';
+import 'package:testy/providers/gemini_tools_provider.dart';
+import 'package:testy/providers/system_prompt_provider.dart';
 import 'package:testy/services/firebase_service.dart';
+import 'package:testy/services/gemini_chat_service.dart';
 import 'package:testy/views/widgets/floating_chat_widget.dart';
 import '../../providers/task_provider.dart';
 import '../widgets/task_card.dart';
@@ -128,11 +132,193 @@ class _TaskManagerScreenState extends State<TaskManagerScreen>
                 color: AppColors.white70
             ),
           ),
+          SizedBox(height: AppDimensions.spaceMedium),
+          _buildModelDropdown(),
           SizedBox(height: AppDimensions.spaceXLarge),
           _buildTaskSummary(),
         ],
       ),
     );
+  }
+
+  Widget _buildModelDropdown() {
+    return Consumer<GeminiProvider>(
+      builder: (context, geminiProvider, child) {
+        return Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: AppDimensions.paddingMedium,
+            vertical: AppDimensions.paddingSmall,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.surface.withOpacity(0.95),
+            borderRadius: BorderRadius.circular(AppDimensions.radiusLarge),
+            border: Border.all(
+              color: AppColors.white.withOpacity(0.2),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: DropdownButton<String>(
+            value: geminiProvider.currentModelId,
+            isExpanded: true,
+            underline: SizedBox.shrink(),
+            dropdownColor: AppColors.surface,
+            icon: Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: AppColors.white,
+              size: AppDimensions.iconMedium,
+            ),
+            style: TextStyle(
+              color: AppColors.white,
+              fontSize: AppDimensions.fontMedium,
+              fontWeight: FontWeight.w500,
+            ),
+            items: geminiProvider.models.map((model) {
+              final isSelected = geminiProvider.isModelSelected(model.modelId);
+              return DropdownMenuItem<String>(
+                value: model.modelId,
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    vertical: AppDimensions.paddingSmall,
+                    horizontal: AppDimensions.paddingMedium,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.primary.withOpacity(0.1)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          model.displayName,
+                          style: TextStyle(
+                            color: isSelected ? AppColors.primary : AppColors.white,
+                            fontSize: AppDimensions.fontMedium,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: AppDimensions.spaceSmall),
+                      if (isSelected)
+                        Container(
+                          padding: EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.check_rounded,
+                            color: AppColors.white,
+                            size: AppDimensions.iconSmall,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+            onChanged: geminiProvider.isInitializing
+                ? null
+                : (String? newModelId) {
+              if (newModelId != null) {
+                _switchModel(context, newModelId);
+              }
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _switchModel(BuildContext context, String modelId) async {
+    final geminiProvider = Provider.of<GeminiProvider>(context, listen: false);
+    final systemPromptProvider = Provider.of<SystemPromptProvider>(context, listen: false);
+    final geminiToolsProvider = Provider.of<GeminiToolsProvider>(context, listen: false);
+    final geminiChatService = Provider.of<GeminiChatService>(context, listen: false);
+
+    try {
+      await geminiProvider.switchModel(modelId, systemPromptProvider, geminiToolsProvider);
+
+      if (geminiProvider.chatSession != null) {
+        geminiChatService.initializeChatSession(geminiProvider.chatSession!, modelId: modelId,);
+        geminiChatService.setFunctionHandler(
+          geminiToolsProvider.geminiTools.handleFunctionCall,
+        );
+        debugPrint('🔄 Chat service reinitialized with new model: ${geminiChatService.currentModelId}');
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  Icons.check_circle_rounded,
+                  color: AppColors.white,
+                  size: AppDimensions.iconSmall,
+                ),
+                SizedBox(width: AppDimensions.spaceSmall),
+                Text(
+                  'Model switched successfully',
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontSize: AppDimensions.fontMedium,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+            ),
+            margin: EdgeInsets.all(AppDimensions.paddingMedium),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  Icons.error_rounded,
+                  color: AppColors.white,
+                  size: AppDimensions.iconSmall,
+                ),
+                SizedBox(width: AppDimensions.spaceSmall),
+                Text(
+                  'Failed to switch model',
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontSize: AppDimensions.fontMedium,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+            ),
+            margin: EdgeInsets.all(AppDimensions.paddingMedium),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildTaskSummary() {
