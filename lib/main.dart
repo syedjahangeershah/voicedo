@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:testy/core/constants/app_colors.dart';
+import 'package:testy/services/firebase_service.dart';
 import 'providers/task_provider.dart';
 import 'providers/gemini_provider.dart';
 import 'providers/system_prompt_provider.dart';
@@ -22,6 +23,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         // Services
+        ChangeNotifierProvider(create: (_) => FirebaseService()),
         ChangeNotifierProvider(create: (_) => VoiceService()),
         ChangeNotifierProvider(create: (_) => GeminiChatService()),
 

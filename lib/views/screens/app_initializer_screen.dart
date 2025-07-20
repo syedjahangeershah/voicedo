@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:testy/services/firebase_service.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/constants/app_strings.dart';
@@ -61,12 +62,19 @@ class _AppInitializerScreenState extends State<AppInitializerScreen>
       final taskProvider = context.read<TaskProvider>();
       final voiceService = context.read<VoiceService>();
       final geminiChatService = context.read<GeminiChatService>();
+      final firebaseService = context.read<FirebaseService>();
 
       // Initialize Gemini components
       await geminiProvider.initializeAll(
         systemPromptProvider,
         geminiToolsProvider,
       );
+
+      final firebaseInitialized = await firebaseService.initialize();
+
+      if (!firebaseInitialized) {
+        throw Exception('Firebase initialization failed!');
+      }
 
       // Connect TaskProvider to GeminiTools for function handling
       geminiToolsProvider.setTaskProvider(taskProvider);
@@ -82,11 +90,14 @@ class _AppInitializerScreenState extends State<AppInitializerScreen>
       // Initialize voice service
       await voiceService.initialize();
 
-      taskProvider.setServices(voiceService, geminiChatService);
+      taskProvider.setServices(
+        voiceService,
+        geminiChatService,
+        firebaseService,
+      );
 
       await Future.delayed(const Duration(seconds: 2));
       _navigateToTaskManager();
-
     } catch (e) {
       if (mounted) {
         setState(() {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:testy/models/chat_message.dart';
 import 'package:testy/models/task.dart';
+import 'package:testy/services/firebase_service.dart';
 import 'package:testy/services/gemini_chat_service.dart';
 import 'package:testy/services/voice_service.dart';
 
@@ -8,6 +9,7 @@ class TaskProvider extends ChangeNotifier {
   // Services
   VoiceService? _voiceService;
   GeminiChatService? _geminiChatService;
+  FirebaseService? _firebaseService;
 
   final List<TaskModel> _tasks = [];
   final List<ChatMessage> _messages = [];
@@ -36,9 +38,11 @@ class TaskProvider extends ChangeNotifier {
   void setServices(
     VoiceService voiceService,
     GeminiChatService geminiChatService,
+      FirebaseService firebaseService,
   ) {
     _voiceService = voiceService;
     _geminiChatService = geminiChatService;
+    _firebaseService = firebaseService;
 
     _voiceService?.setErrorCallback(_handleVoiceError);
     _geminiChatService?.setErrorCallback(_handleGeminiError);
