@@ -36,8 +36,6 @@ class GeminiChatService extends ChangeNotifier {
     print('🔗 Function handler connected to chat service');
   }
 
-  // Send message to Gemini (main method for voice commands)
-  // Send message to Gemini (main method for voice commands)
   Future<String?> sendMessage(String message) async {
     if (_chatSession == null) {
       _error = 'Chat session not initialized';
@@ -54,7 +52,7 @@ class GeminiChatService extends ChangeNotifier {
       print('📤 Sending message to Gemini: $message');
 
       // Send message to Gemini
-      final response = await _chatSession!.sendMessage(Content.text(message));
+      final response = await _chatSession!.sendMessage(Content.multi([TextPart(message)]));
 
       String finalResponse = '';
 
@@ -87,7 +85,7 @@ class GeminiChatService extends ChangeNotifier {
       print('❌ Error sending message: $e');
       print('Stack trace: $stackTrace');
       _error = 'Failed to process request: $e';
-      _lastResponse = 'Sorry, I encountered an error. Please try again.';
+      _lastResponse = 'Sorry, error sending message: $e';
       return _lastResponse;
     } finally {
       _isProcessing = false;
@@ -155,7 +153,26 @@ class GeminiChatService extends ChangeNotifier {
 
   // Notify Gemini about task operations for context synchronization
   Future<void> notifyTaskOperation(String operation, Map<String, dynamic> taskData) async {
-    final notification = 'System notification: Task $operation - ${json.encode(taskData)}';
+    // Simplified notification format for Gemini 2.5 Flash
+    String notification;
+
+    switch (operation) {
+      case 'created':
+        notification = 'System: I just created a task titled "${taskData['title']}" for ${taskData['scheduled_time']}';
+        break;
+      case 'updated':
+        notification = 'System: I updated the task "${taskData['title']}"';
+        break;
+      case 'deleted':
+        notification = 'System: I deleted the task "${taskData['title']}"';
+        break;
+      case 'user_name_updated':
+        notification = 'System: User name changed to "${taskData['new_name']}"';
+        break;
+      default:
+        notification = 'System: Task $operation completed';
+    }
+
     print('🔔 Notifying Gemini: $notification');
     await sendMessage(notification);
   }

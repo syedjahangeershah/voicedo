@@ -64,13 +64,6 @@ class GeminiToolsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Validate if specific function is available
-  bool hasFunctionDeclaration(String functionName) {
-    if (!_isInitialized) return false;
-    return _geminiTools.getFunctionDeclaration(functionName) != null;
-  }
-
-
   @override
   void dispose() {
     resetTools();

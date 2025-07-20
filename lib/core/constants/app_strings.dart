@@ -3,7 +3,7 @@ class AppStrings {
   static const String appTitle = 'Voice Task Manager';
 
   // Greetings
-  static const String greeting = 'Hello, Jahangeer!';
+  static const String greeting = 'Hello,';
   static const String subtitle = 'Let\'s manage your tasks';
 
   // Task Management

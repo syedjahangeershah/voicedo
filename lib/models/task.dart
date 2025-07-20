@@ -38,12 +38,12 @@ class TaskModel {
     'createdAt': createdAt.toIso8601String(),
   };
 
-  factory TaskModel.fromJson(Map<String, dynamic> json) => TaskModel(
-    id: json['id'],
+  factory TaskModel.fromJson(Map<String, dynamic> json, {TaskStatus? status}) => TaskModel(
+    id: json['id'] ?? "",
     title: json['title'],
     description: json['description'],
     scheduledTime: DateTime.parse(json['scheduledTime']),
-    status: TaskStatus.values[json['status'] ?? 0],
+    status: status ?? TaskStatus.values[json['status'] ?? 0],
     createdAt: DateTime.parse(json['createdAt']),
   );
 

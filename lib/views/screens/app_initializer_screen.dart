@@ -96,7 +96,8 @@ class _AppInitializerScreenState extends State<AppInitializerScreen>
         firebaseService,
       );
 
-      await Future.delayed(const Duration(seconds: 2));
+      await taskProvider.startListeningToTasks();
+
       _navigateToTaskManager();
     } catch (e) {
       if (mounted) {

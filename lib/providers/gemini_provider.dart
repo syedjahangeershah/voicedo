@@ -75,7 +75,7 @@ class GeminiProvider extends ChangeNotifier {
       final geminiTools = geminiToolsProvider.getGeminiTools();
 
       _geminiModel = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash',
         systemInstruction: Content.system(systemPrompt),
         tools: geminiTools.tools,
       );

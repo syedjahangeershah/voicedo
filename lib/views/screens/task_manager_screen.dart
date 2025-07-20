@@ -1,8 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:testy/core/constants/app_colors.dart';
 import 'package:testy/core/constants/app_dimensions.dart';
 import 'package:testy/core/constants/app_strings.dart';
+import 'package:testy/services/firebase_service.dart';
 import 'package:testy/views/widgets/floating_chat_widget.dart';
 import '../../providers/task_provider.dart';
 import '../widgets/task_card.dart';
@@ -32,6 +34,21 @@ class _TaskManagerScreenState extends State<TaskManagerScreen>
     );
 
     _listController.forward();
+  }
+
+  Stream<DocumentSnapshot> _getUserNameStream() {
+    final firebaseService = context.read<FirebaseService>();
+    final userId = firebaseService.currentUserId;
+
+    if (userId != null) {
+      return FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .snapshots();
+    } else {
+      // Return empty stream if no user ID
+      return Stream.empty();
+    }
   }
 
   @override
@@ -83,13 +100,25 @@ class _TaskManagerScreenState extends State<TaskManagerScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            AppStrings.greeting,
-            style: TextStyle(
-              fontSize: AppDimensions.fontXXLarge,
-              fontWeight: FontWeight.bold,
-              color: AppColors.white,
-            ),
+          StreamBuilder<DocumentSnapshot>(
+            stream: _getUserNameStream(),
+            builder: (context, snapshot) {
+              String userName = 'Anonymous'; // Default fallback
+
+              if (snapshot.hasData && snapshot.data?.exists == true) {
+                final userData = snapshot.data?.data() as Map<String, dynamic>?;
+                userName = userData?['name'] ?? 'Anonymous';
+              }
+
+              return Text(
+                'Hello, $userName!', // Dynamic greeting with live name
+                style: TextStyle(
+                  fontSize: AppDimensions.fontXXLarge,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.white,
+                ),
+              );
+            },
           ),
           SizedBox(height: AppDimensions.spaceSmall),
           Text(

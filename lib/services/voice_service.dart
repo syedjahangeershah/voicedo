@@ -173,7 +173,6 @@ class VoiceService extends ChangeNotifier {
         _speech!.cancel();
       }
 
-      // Wait a bit
       await Future.delayed(Duration(milliseconds: 500));
       _onSystemError?.call('🔄 Resetting speech recognition...');
 

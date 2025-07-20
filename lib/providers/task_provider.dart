@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:testy/models/chat_message.dart';
 import 'package:testy/models/task.dart';
@@ -11,8 +14,11 @@ class TaskProvider extends ChangeNotifier {
   GeminiChatService? _geminiChatService;
   FirebaseService? _firebaseService;
 
-  final List<TaskModel> _tasks = [];
+  List<TaskModel> _tasks = [];
   final List<ChatMessage> _messages = [];
+  StreamSubscription<QuerySnapshot>? _tasksSubscription;
+
+  bool _isListeningToTasks = false;
   bool _isRecording = false;
   bool _isProcessing = false;
 
@@ -29,6 +35,8 @@ class TaskProvider extends ChangeNotifier {
   List<TaskModel> get overdueTasks =>
       _tasks.where((task) => task.isOverdue).toList();
 
+  bool get isListeningToTasks => _isListeningToTasks;
+
   bool get isRecording => _isRecording;
 
   bool get isProcessing => _isProcessing;
@@ -38,7 +46,7 @@ class TaskProvider extends ChangeNotifier {
   void setServices(
     VoiceService voiceService,
     GeminiChatService geminiChatService,
-      FirebaseService firebaseService,
+    FirebaseService firebaseService,
   ) {
     _voiceService = voiceService;
     _geminiChatService = geminiChatService;
@@ -49,6 +57,92 @@ class TaskProvider extends ChangeNotifier {
 
     // Listen to voice service state changes
     _listenToVoiceServiceChanges();
+  }
+
+  // Start listening to tasks
+  Future<void> startListeningToTasks() async {
+    if (_firebaseService?.currentUserId == null || _isListeningToTasks) return;
+
+    try {
+      print(
+        '🔄 Starting real-time task listener for user: ${_firebaseService?.currentUserId}',
+      );
+
+      _isListeningToTasks = true;
+
+      // Listen to tasks collection for current user
+      final tasksRef = FirebaseFirestore.instance
+          .collection('tasks')
+          .doc(_firebaseService!.currentUserId)
+          .collection('tasks');
+
+      _tasksSubscription = tasksRef.snapshots().listen(
+        (QuerySnapshot snapshot) {
+          _handleTasksSnapshot(snapshot);
+        },
+        onError: (error) {
+          print('❌ Task listener error: $error');
+          addSystemErrorMessage('Task sync failed: $error');
+        },
+      );
+
+      print('✅ Task listener started successfully');
+    } catch (e) {
+      print('❌ Failed to start task listener: $e');
+      addSystemErrorMessage('Failed to sync tasks: $e');
+      _isListeningToTasks = false;
+    }
+  }
+
+  void _handleTasksSnapshot(QuerySnapshot snapshot) {
+    try {
+      print('🔄 Received ${snapshot.docs.length} tasks from Firestore');
+
+      final firestoreTasks = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+
+        if (data['scheduledTime'] is Timestamp) {
+          data['scheduledTime'] = (data['scheduledTime'] as Timestamp)
+              .toDate()
+              .toIso8601String();
+        }
+        if (data['createdAt'] is Timestamp) {
+          data['createdAt'] = (data['createdAt'] as Timestamp)
+              .toDate()
+              .toIso8601String();
+        }
+        if (data['updatedAt'] is Timestamp) {
+          data['updatedAt'] = (data['updatedAt'] as Timestamp)
+              .toDate()
+              .toIso8601String();
+        }
+
+        return TaskModel.fromJson(
+          data,
+          status: _parseTaskStatus(data['status']),
+        );
+      }).toList();
+
+      // Update local tasks array
+      _tasks = firestoreTasks;
+
+      print('✅ Updated local tasks: ${_tasks.length} tasks');
+      notifyListeners();
+    } catch (e, stackTrace) {
+      print('❌ Error processing task snapshot: $e \n$stackTrace');
+      addSystemErrorMessage('Failed to process task updates: $e');
+    }
+  }
+
+  // Stop listening to tasks
+  void stopListeningToTasks() {
+    if (_tasksSubscription != null) {
+      print('🛑 Stopping task listener');
+      _tasksSubscription!.cancel();
+      _tasksSubscription = null;
+      _isListeningToTasks = false;
+      notifyListeners();
+    }
   }
 
   void _handleVoiceError(String errorMessage) {
@@ -85,11 +179,13 @@ class TaskProvider extends ChangeNotifier {
 
   // Add system error message
   void addSystemErrorMessage(String errorText) {
-    _messages.add(ChatMessage(
-      text: 'System: $errorText',
-      messageType: MessageType.system,
-      timestamp: DateTime.now(),
-    ));
+    _messages.add(
+      ChatMessage(
+        text: 'System: $errorText',
+        messageType: MessageType.system,
+        timestamp: DateTime.now(),
+      ),
+    );
     notifyListeners();
     print('🔴 System error added to chat: $errorText');
   }
@@ -99,77 +195,181 @@ class TaskProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Task Management
-  void addTask(TaskModel task) {
-    _tasks.add(task);
-    notifyListeners();
+  Future<void> addTask(TaskModel task) async {
+    try {
+      if (_firebaseService?.currentUserId == null) {
+        addSystemErrorMessage('User not authenticated. Cannot create task.');
+        return;
+      }
 
-    // Notify Gemini about task creation for context synchronization
-    Future.delayed(const Duration(seconds: 3), () {
-      _notifyGeminiTaskOperation('created', {
-        'id': task.id,
+      print('💾 Creating task in Firestore: ${task.title}');
+
+      // Save to Firestore
+      final taskRef = FirebaseFirestore.instance
+          .collection('tasks')
+          .doc(_firebaseService!.currentUserId)
+          .collection('tasks')
+          .doc();
+      final taskData = {
+        'id': taskRef.id,
         'title': task.title,
         'description': task.description,
-        'scheduled_time': task.scheduledTime.toIso8601String(),
+        'scheduledTime': Timestamp.fromDate(task.scheduledTime),
         'status': task.status.name,
-        'created_at': task.createdAt.toIso8601String(),
+        'createdAt': Timestamp.fromDate(task.createdAt),
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      };
+      await taskRef.set(taskData);
+
+      print('✅ Task created in Firestore: ${task.title}');
+
+      // Notify Gemini about task creation for context synchronization
+      // Real-time listener will automatically update local _tasks array
+      Future.delayed(const Duration(seconds: 3), () {
+        _notifyGeminiTaskOperation('created', {
+          'id': taskRef.id,
+          'title': task.title,
+          'description': task.description,
+          'scheduled_time': task.scheduledTime.toIso8601String(),
+          'status': task.status.name,
+          'created_at': task.createdAt.toIso8601String(),
+        });
       });
-    });
+    } catch (e) {
+      print('❌ Error creating task in Firestore: $e');
+      addSystemErrorMessage('Failed to create task: $e');
+    }
   }
 
-  void updateTask(
-    String id, {
+  void updateTask({
+    String? id,
+    int? number,
     String? title,
     String? description,
     DateTime? scheduledTime,
     TaskStatus? status,
   }) {
-    final taskIndex = _tasks.indexWhere((task) => task.id == id);
-    if (taskIndex != -1) {
-      final oldTask = TaskModel.fromJson(_tasks[taskIndex].toJson());
-      _tasks[taskIndex] = _tasks[taskIndex].copyWith(
-        title: title,
-        description: description,
-        scheduledTime: scheduledTime,
-        status: status,
-      );
-      notifyListeners();
+    int taskIndex;
+    if (number != null) {
+      // User provided task number (1-based index)
+      print('🔢 Updating task by number: $number');
 
-      // Notify Gemini about task update for context synchronization
-      final updatedTask = _tasks[taskIndex];
-      Future.delayed(const Duration(seconds: 3), () {
-        _notifyGeminiTaskOperation('updated', {
-          'id': updatedTask.id,
-          'title': updatedTask.title,
-          'description': updatedTask.description,
-          'scheduled_time': updatedTask.scheduledTime.toIso8601String(),
-          'status': updatedTask.status.name,
-          'previous_title': oldTask.title,
-          'previous_description': oldTask.title,
-          'previous_scheduled_time': oldTask.title,
-          'previous_status': oldTask.status.name,
-        });
-      });
+      if (number < 1 || number > _tasks.length) {
+        addSystemErrorMessage(
+          'Invalid task number. You have ${_tasks.length} tasks (1-${_tasks.length}).',
+        );
+        return;
+      }
+
+      taskIndex = number - 1;
+    } else {
+      // User provided task ID
+      print('🆔 Updating task by ID: $id');
+      taskIndex = _tasks.indexWhere((task) => task.id == id);
     }
+
+    final oldTask = TaskModel.fromJson(_tasks[taskIndex].toJson());
+    _tasks[taskIndex] = _tasks[taskIndex].copyWith(
+      title: title,
+      description: description,
+      scheduledTime: scheduledTime,
+      status: status,
+    );
+    notifyListeners();
+
+    // Notify Gemini about task update for context synchronization
+    final updatedTask = _tasks[taskIndex];
+    Future.delayed(const Duration(seconds: 3), () {
+      _notifyGeminiTaskOperation('updated', {
+        'id': updatedTask.id,
+        'title': updatedTask.title,
+        'description': updatedTask.description,
+        'scheduled_time': updatedTask.scheduledTime.toIso8601String(),
+        'status': updatedTask.status.name,
+        'previous_title': oldTask.title,
+        'previous_description': oldTask.title,
+        'previous_scheduled_time': oldTask.title,
+        'previous_status': oldTask.status.name,
+      });
+    });
   }
 
-  void deleteTask(String id) {
-    final taskIndex = _tasks.indexWhere((task) => task.id == id);
-    if (taskIndex != -1) {
-      final deletedTask = TaskModel.fromJson(_tasks[taskIndex].toJson());
-      _tasks.removeWhere((task) => task.id == id);
-      notifyListeners();
+  Future<void> deleteTask({String? id, int? number}) async {
+    try {
+      // Find task index
+      int taskIndex;
+      if (number != null) {
+        // User provided task number (1-based index)
+        print('🔢 Deleting task by number: $number');
+
+        if (number < 1 || number > _tasks.length) {
+          addSystemErrorMessage(
+            'Invalid task number. You have ${_tasks.length} tasks (1-${_tasks.length}).',
+          );
+          return;
+        }
+
+        taskIndex = number - 1; // Convert to 0-based index
+      } else {
+        // User provided task ID
+        print('🆔 Deleting task by ID: $id');
+        taskIndex = _tasks.indexWhere((task) => task.id == id);
+      }
+
+      final taskToDelete = _tasks[taskIndex];
+      print('🗑️ Deleting task from Firestore: ${taskToDelete.title}');
+
+      // Delete from Firestore using the task ID
+      await FirebaseFirestore.instance
+          .collection('tasks')
+          .doc(_firebaseService!.currentUserId)
+          .collection('tasks')
+          .doc(taskToDelete.id) // Always use the actual Firestore ID
+          .delete();
+
+      print('✅ Task deleted from Firestore: ${taskToDelete.title}');
 
       // Notify Gemini about task deletion for context synchronization
       Future.delayed(const Duration(seconds: 3), () {
         _notifyGeminiTaskOperation('deleted', {
-          'id': deletedTask.id,
-          'title': deletedTask.title,
-          'description': deletedTask.description,
-          'scheduled_time': deletedTask.scheduledTime.toIso8601String(),
-          'status': deletedTask.status.name,
+          'id': taskToDelete.id,
+          'title': taskToDelete.title,
+          'description': taskToDelete.description,
+          'scheduled_time': taskToDelete.scheduledTime.toIso8601String(),
+          'status': taskToDelete.status.name,
         });
       });
+    } catch (e) {
+      print('❌ Error deleting task from Firestore: $e');
+      addSystemErrorMessage('Failed to delete task: $e');
+    }
+  }
+
+  Future<void> updateUserName(String newName) async {
+    try {
+      final trimmedName = newName.trim();
+      print('👤 Updating user name to: $trimmedName');
+
+      // Update name in Firestore users collection
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_firebaseService!.currentUserId)
+          .update({'name': trimmedName});
+
+      // Update the name in FirebaseService as well
+      await _firebaseService!.updateUserName(trimmedName);
+
+      print('✅ User name updated successfully to: $trimmedName');
+
+      Future.delayed(const Duration(seconds: 3), () {
+        _notifyGeminiTaskOperation('user_name_updated', {
+          'user_id': _firebaseService!.currentUserId,
+          'new_name': trimmedName,
+        });
+      });
+    } catch (e) {
+      print('❌ Error updating user name: $e');
+      addSystemErrorMessage('Failed to update name: $e');
     }
   }
 
@@ -185,7 +385,9 @@ class TaskProvider extends ChangeNotifier {
         print('🎤 Voice service started listening');
       } catch (e) {
         print('❌ Failed to start voice service: $e');
-        addSystemErrorMessage('Voice Error -> ❌ Failed to start voice service: $e');
+        addSystemErrorMessage(
+          'Voice Error -> ❌ Failed to start voice service: $e',
+        );
         _isRecording = false;
         notifyListeners();
       }
@@ -202,7 +404,9 @@ class TaskProvider extends ChangeNotifier {
       print('🛑 Voice service stopped listening');
     } catch (e) {
       print('❌ Failed to stop voice service: $e');
-      addSystemErrorMessage('Voice Error -> ❌ Failed to stop voice service: $e');
+      addSystemErrorMessage(
+        'Voice Error -> ❌ Failed to stop voice service: $e',
+      );
     }
   }
 
@@ -271,6 +475,8 @@ class TaskProvider extends ChangeNotifier {
           return _handleUpdateTask(arguments);
         case 'delete_task':
           return _handleDeleteTask(arguments);
+        case 'update_user_name':
+          return _handleUpdateUserName(arguments);
         default:
           print('⚠️ Unknown function: $functionName');
           return null;
@@ -314,13 +520,11 @@ class TaskProvider extends ChangeNotifier {
   // Handle update task from Gemini
   Map<String, dynamic> _handleUpdateTask(Map<String, Object?> arguments) {
     final taskId = arguments['task_id'] as String?;
-    if (taskId == null) {
-      throw Exception('Task ID is required for updates');
-    }
+    final taskNumber = arguments['task_number'] as int?;
 
-    final taskIndex = _tasks.indexWhere((task) => task.id == taskId);
-    if (taskIndex == -1) {
-      throw Exception('Task with ID $taskId not found');
+    // Validate that either task_id or task_number is provided
+    if (taskId == null && taskNumber == null) {
+      throw Exception('Either task_id or task_number is required for update');
     }
 
     final title = arguments['title'] as String?;
@@ -335,20 +539,37 @@ class TaskProvider extends ChangeNotifier {
       status = _parseTaskStatus(statusStr);
     }
 
-    updateTask(
-      taskId,
-      title: title,
-      description: description,
-      scheduledTime: scheduledTime,
-      status: status,
-    );
+    int taskIndex;
+    if (taskNumber != null) {
+      updateTask(
+        number: taskNumber,
+        title: title,
+        description: description,
+        scheduledTime: scheduledTime,
+        status: status,
+      );
+      taskIndex = taskNumber - 1;
+    } else {
+      taskIndex = _tasks.indexWhere((task) => task.id == taskId);
+      if (taskIndex == -1) {
+        throw Exception('Task with ID $taskId not found');
+      }
+      updateTask(
+        id: taskId,
+        title: title,
+        description: description,
+        scheduledTime: scheduledTime,
+        status: status,
+      );
+    }
 
     final updatedTask = _tasks[taskIndex];
 
     print('✅ Updated task: ${updatedTask.title}');
 
     return {
-      'task_id': taskId,
+      'task_id': updatedTask.id,
+      if (taskNumber != null) 'task_number': taskNumber,
       'title': updatedTask.title,
       'description': updatedTask.description,
       'status': updatedTask.status.name,
@@ -359,27 +580,54 @@ class TaskProvider extends ChangeNotifier {
   // Handle delete task from Gemini
   Map<String, dynamic> _handleDeleteTask(Map<String, Object?> arguments) {
     final taskId = arguments['task_id'] as String?;
-    if (taskId == null) {
-      throw Exception('Task ID is required for deletion');
+    final taskNumber = arguments['task_number'] as int?;
+
+    // Validate that either task_id or task_number is provided
+    if (taskId == null && taskNumber == null) {
+      throw Exception('Either task_id or task_number is required for deletion');
     }
 
-    final taskIndex = _tasks.indexWhere((task) => task.id == taskId);
-    if (taskIndex == -1) {
-      throw Exception('Task with ID $taskId not found');
+    int taskIndex;
+    if (taskNumber != null) {
+      deleteTask(number: taskNumber);
+      taskIndex = taskNumber - 1;
+    } else {
+      taskIndex = _tasks.indexWhere((task) => task.id == taskId);
+      if (taskIndex == -1) {
+        throw Exception('Task with ID $taskId not found');
+      }
+      deleteTask(id: taskId);
     }
-
-    final task = _tasks[taskIndex];
-    final taskTitle = task.title;
-
-    deleteTask(taskId);
-
-    print('✅ Deleted task: $taskTitle');
 
     return {
-      'task_id': taskId,
-      'deleted_title': taskTitle,
-      'message': 'Task "$taskTitle" has been deleted successfully',
+      'task_id': _tasks[taskIndex].id,
+      if (taskNumber != null) 'task_number': taskNumber,
+      'deleted_title': _tasks[taskIndex].title,
+      // 'message': taskNumber != null
+      //     ? 'Task #$taskNumber has been deleted successfully'
+      //     : 'Task "${_tasks[taskIndex].title}" has been deleted successfully',
     };
+  }
+
+  Map<String, dynamic> _handleUpdateUserName(Map<String, Object?> arguments) {
+
+      final newName = arguments['name'] as String?;
+
+      if (newName == null || newName.trim().isEmpty) {
+        throw Exception('Name is required and cannot be empty');
+      }
+
+      final trimmedName = newName.trim();
+
+      updateUserName(trimmedName);
+
+      print('✅ User name update requested: $trimmedName');
+
+      return {
+        'success': true,
+        'new_name': trimmedName,
+        'message': 'Your name has been successfully updated to $trimmedName. Nice to meet you, $trimmedName!',
+      };
   }
 
   // Helper method to notify Gemini about task operations
@@ -422,5 +670,40 @@ class TaskProvider extends ChangeNotifier {
       default:
         return TaskStatus.pending;
     }
+  }
+
+  // Reset all state
+  void reset() {
+    print('🔄 Resetting TaskProvider state');
+
+    // Stop listening to tasks
+    stopListeningToTasks();
+
+    // Clear all data
+    _tasks.clear();
+    _messages.clear();
+
+    // Reset state flags
+    _isRecording = false;
+    _isProcessing = false;
+    _isListeningToTasks = false;
+
+    // Cancel subscriptions
+    _tasksSubscription?.cancel();
+    _tasksSubscription = null;
+
+    notifyListeners();
+    print('✅ TaskProvider state reset complete');
+  }
+
+  // Dispose method
+  @override
+  void dispose() {
+    print('🗑️ Disposing TaskProvider');
+
+    reset();
+
+    super.dispose();
+    print('✅ TaskProvider disposed successfully');
   }
 }
