@@ -40,20 +40,24 @@ class TaskProvider extends ChangeNotifier {
     _voiceService = voiceService;
     _geminiChatService = geminiChatService;
 
+    _voiceService?.setErrorCallback(_handleVoiceError);
+    _geminiChatService?.setErrorCallback(_handleGeminiError);
+
     // Listen to voice service state changes
     _listenToVoiceServiceChanges();
+  }
+
+  void _handleVoiceError(String errorMessage) {
+    addSystemErrorMessage('Voice Error -> $errorMessage');
+  }
+
+  void _handleGeminiError(String errorMessage) {
+    addSystemErrorMessage('AI Error -> $errorMessage');
   }
 
   // Listen to voice service state changes
   void _listenToVoiceServiceChanges() {
     _voiceService?.addListener(() {
-      // If voice service stopped listening due to error, update our state
-      // if (_isRecording && (!_voiceService!.isListening)) {
-      //   print('🔄 Voice service stopped listening, updating UI state');
-      //   _isRecording = false;
-      //   notifyListeners();
-      // }
-
       // If voice service has an error, stop recording
       if (_voiceService!.error != null && _isRecording) {
         print('❌ Voice service error detected, stopping recording UI');
@@ -78,7 +82,7 @@ class TaskProvider extends ChangeNotifier {
   // Add system error message
   void addSystemErrorMessage(String errorText) {
     _messages.add(ChatMessage(
-      text: '⚠️ System: $errorText',
+      text: 'System: $errorText',
       messageType: MessageType.system,
       timestamp: DateTime.now(),
     ));
@@ -177,6 +181,7 @@ class TaskProvider extends ChangeNotifier {
         print('🎤 Voice service started listening');
       } catch (e) {
         print('❌ Failed to start voice service: $e');
+        addSystemErrorMessage('Voice Error -> ❌ Failed to start voice service: $e');
         _isRecording = false;
         notifyListeners();
       }
@@ -193,6 +198,7 @@ class TaskProvider extends ChangeNotifier {
       print('🛑 Voice service stopped listening');
     } catch (e) {
       print('❌ Failed to stop voice service: $e');
+      addSystemErrorMessage('Voice Error -> ❌ Failed to stop voice service: $e');
     }
   }
 
@@ -214,6 +220,7 @@ class TaskProvider extends ChangeNotifier {
 
       if (speechText.isEmpty) {
         print('⚠️ No speech detected');
+        addSystemErrorMessage('⚠️ No speech detected. Please try again.');
         return 'No speech detected. Please try again.';
       }
 
@@ -237,6 +244,7 @@ class TaskProvider extends ChangeNotifier {
       }
     } catch (e) {
       print('❌ Error processing voice command: $e');
+      addSystemErrorMessage('Voice processing failed: $e');
       return 'Voice processing failed: $e';
     } finally {
       _isProcessing = false;
@@ -265,6 +273,7 @@ class TaskProvider extends ChangeNotifier {
       }
     } catch (e) {
       print('❌ Error in handleGeminiFunctionCall: $e');
+      addSystemErrorMessage('Function call error: $e');
       return {'success': false, 'error': e.toString()};
     }
   }

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 class GeminiChatService extends ChangeNotifier {
   ChatSession? _chatSession;
   Function(String, Map<String, Object?>)? _functionHandler;
+  Function(String)? _onSystemError;
 
   bool _isProcessing = false;
   String? _error;
@@ -23,6 +24,10 @@ class GeminiChatService extends ChangeNotifier {
     _error = null;
     notifyListeners();
     print('✅ Gemini chat session initialized');
+  }
+
+  void setErrorCallback(Function(String) onError) {
+    _onSystemError = onError;
   }
 
   // Set function handler for tool calls
@@ -142,6 +147,7 @@ class GeminiChatService extends ChangeNotifier {
 
     } catch (e, stackTrace) {
       print('❌ Error handling function calls: $e');
+      _onSystemError?.call('❌ Error handling function calls: $e');
       print('Stack trace: $stackTrace');
       return 'Sorry, I had trouble completing that task.';
     }

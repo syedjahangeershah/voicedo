@@ -10,6 +10,8 @@ class VoiceService extends ChangeNotifier {
   String _lastWords = '';
   String? _error;
 
+  Function(String)? _onSystemError;
+
   // Getters
   bool get isListening => _isListening;
   bool get isAvailable => _isAvailable;
@@ -89,6 +91,7 @@ class VoiceService extends ChangeNotifier {
 
     } catch (e) {
       _error = 'Failed to start listening: $e';
+      _onSystemError?.call('❌ Failed to start listening: $e');
       print('❌ Listen error: $e');
       notifyListeners();
       return null;
@@ -141,15 +144,22 @@ class VoiceService extends ChangeNotifier {
     print('✅ Recognition complete: $text');
   }
 
+
+  void setErrorCallback(Function(String) onError) {
+    _onSystemError = onError;
+  }
+
   void _onSpeechError() {
     _isListening = false;
     _error = 'Speech recognition error occurred';
     print('❌ Speech error occurred');
 
+    _onSystemError?.call('Speech recognition failed. Please try again.');
+
     // Reset speech recognition on error
     print('🔄 Resetting speech recognition due to error');
-    _resetSpeechRecognition();
 
+    _resetSpeechRecognition();
     notifyListeners();
   }
 
@@ -165,6 +175,7 @@ class VoiceService extends ChangeNotifier {
 
       // Wait a bit
       await Future.delayed(Duration(milliseconds: 500));
+      _onSystemError?.call('🔄 Resetting speech recognition...');
 
       // Clear state
       _isListening = false;
@@ -179,6 +190,7 @@ class VoiceService extends ChangeNotifier {
           print('✅ Speech recognition reset complete: $_isAvailable');
         }).catchError((e) {
           print('❌ Failed to reactivate speech: $e');
+          _onSystemError?.call('❌ Failed to reactivate speech: $e');
           _error = 'Speech reactivation failed';
           _isAvailable = false;
           notifyListeners();
@@ -187,6 +199,7 @@ class VoiceService extends ChangeNotifier {
 
     } catch (e) {
       print('❌ Failed to reset speech recognition: $e');
+      _onSystemError?.call('❌ Failed to reactivate speech: $e');
       _error = 'Speech recognition reset failed';
       _isAvailable = false;
       notifyListeners();
