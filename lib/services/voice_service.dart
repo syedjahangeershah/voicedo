@@ -188,6 +188,7 @@ class VoiceService extends ChangeNotifier {
           _isAvailable = result;
           notifyListeners();
           print('✅ Speech recognition reset complete: $_isAvailable');
+          _onSystemError?.call('✅ Speech reactivated successfully!');
         }).catchError((e) {
           print('❌ Failed to reactivate speech: $e');
           _onSystemError?.call('❌ Failed to reactivate speech: $e');

@@ -4,7 +4,6 @@ import 'package:testy/core/constants/app_colors.dart';
 import 'package:testy/core/constants/app_dimensions.dart';
 import 'package:testy/models/chat_message.dart';
 import 'package:testy/providers/task_provider.dart';
-import '../../services/gemini_chat_service.dart';
 
 class FloatingChatWidget extends StatefulWidget {
   const FloatingChatWidget({super.key});
@@ -19,6 +18,21 @@ class _FloatingChatWidgetState extends State<FloatingChatWidget>
   bool _isMinimized = true; // Add this new state variable
   late AnimationController _animationController;
   late Animation<double> _sizeAnimation;
+
+  late ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _animationController = AnimationController(
+      duration: Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _sizeAnimation = Tween<double>(begin: 0.3, end: 0.8).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+  }
 
   void _toggleExpansion() {
     if (_isMinimized) {
@@ -45,18 +59,6 @@ class _FloatingChatWidgetState extends State<FloatingChatWidget>
       _isExpanded = false;
       _animationController.reverse();
     });
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      duration: Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _sizeAnimation = Tween<double>(begin: 0.3, end: 0.8).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
   }
 
   @override
@@ -234,7 +236,17 @@ class _FloatingChatWidgetState extends State<FloatingChatWidget>
             ),
           );
         }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            _scrollController.animateTo(
+              _scrollController.position.maxScrollExtent,
+              duration: Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        });
         return ListView.builder(
+          controller: _scrollController,
           padding: EdgeInsets.all(AppDimensions.paddingMedium),
           itemCount: provider.messages.length,
           itemBuilder: (context, index) {
@@ -261,9 +273,7 @@ class _FloatingChatWidgetState extends State<FloatingChatWidget>
                   ? AppColors.error
                   : AppColors.primary,
               child: Icon(
-                message.isSystem
-                    ? Icons.warning
-                    : Icons.smart_toy, 
+                message.isSystem ? Icons.warning : Icons.smart_toy,
                 color: AppColors.white,
                 size: 14,
               ),
