@@ -64,11 +64,26 @@ class TaskProvider extends ChangeNotifier {
   }
 
   // Add message to messages array to display messages in Chat box
-  void addMessage(String text, bool isUser) {
+  void addMessage(String text, MessageType messageType) {
     _messages.add(
-      ChatMessage(text: text, isUser: isUser, timestamp: DateTime.now()),
+      ChatMessage(
+        text: text,
+        messageType: messageType,
+        timestamp: DateTime.now(),
+      ),
     );
     notifyListeners();
+  }
+
+  // Add system error message
+  void addSystemErrorMessage(String errorText) {
+    _messages.add(ChatMessage(
+      text: '⚠️ System: $errorText',
+      messageType: MessageType.system,
+      timestamp: DateTime.now(),
+    ));
+    notifyListeners();
+    print('🔴 System error added to chat: $errorText');
   }
 
   void clearMessages() {
@@ -203,13 +218,16 @@ class TaskProvider extends ChangeNotifier {
       }
 
       print('🎤 Speech recognized: $speechText');
-      addMessage(speechText, true);
+      addMessage(speechText, MessageType.user);
 
       // Send to Gemini for processing
       if (_geminiChatService != null) {
         final response = await _geminiChatService!.sendMessage(speechText);
 
-        addMessage(response ?? 'Task processed successfully!', false);
+        addMessage(
+          response ?? 'Task processed successfully!',
+          MessageType.assistant,
+        );
 
         print('🤖 Gemini response: $response');
         return response ?? 'Task processed successfully!';
@@ -351,7 +369,6 @@ class TaskProvider extends ChangeNotifier {
     };
   }
 
-
   // Helper method to notify Gemini about task operations
   void _notifyGeminiTaskOperation(
     String operation,
@@ -393,5 +410,4 @@ class TaskProvider extends ChangeNotifier {
         return TaskStatus.pending;
     }
   }
-
 }

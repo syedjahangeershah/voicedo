@@ -257,8 +257,16 @@ class _FloatingChatWidgetState extends State<FloatingChatWidget>
           if (!message.isUser) ...[
             CircleAvatar(
               radius: 12,
-              backgroundColor: AppColors.primary,
-              child: Icon(Icons.smart_toy, color: AppColors.white, size: 14),
+              backgroundColor: message.isSystem
+                  ? AppColors.error
+                  : AppColors.primary,
+              child: Icon(
+                message.isSystem
+                    ? Icons.warning
+                    : Icons.smart_toy, 
+                color: AppColors.white,
+                size: 14,
+              ),
             ),
             SizedBox(width: AppDimensions.spaceSmall),
           ],
@@ -271,6 +279,8 @@ class _FloatingChatWidgetState extends State<FloatingChatWidget>
               decoration: BoxDecoration(
                 color: message.isUser
                     ? AppColors.primary
+                    : message.isSystem
+                    ? AppColors.error.withOpacity(0.2)
                     : AppColors.white.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
               ),
