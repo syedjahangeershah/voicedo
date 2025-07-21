@@ -9,6 +9,8 @@ A revolutionary Flutter application that combines voice recognition with AI-powe
 
 ## 🌟 Overview
 
+[📹 Watch Demo Video](https://www.loom.com/share/2c0bc9ee793f4b5bbd5a1f7904ed2104?sid=2cff350d-acb0-4492-828c-f7d80e88c70b)
+
 VoiceDo is an intelligent task management application that allows users to create, update, and delete tasks using natural voice commands. The app leverages Google's Gemini AI with **client-side function calling** - a cutting-edge approach that reduces API costs by 50% compared to traditional server-side implementations.
 
 ## 🚀 Key Features
