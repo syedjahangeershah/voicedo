@@ -241,57 +241,76 @@ class TaskProvider extends ChangeNotifier {
     }
   }
 
-  void updateTask({
+  // Update task in Firestore (supports both ID and task number)
+  Future<void> updateTask({
     String? id,
     int? number,
     String? title,
     String? description,
     DateTime? scheduledTime,
     TaskStatus? status,
-  }) {
-    int taskIndex;
-    if (number != null) {
-      // User provided task number (1-based index)
-      debugPrint('🔢 Updating task by number: $number');
+  }) async {
+    try {
+      // Find task index
+      int taskIndex;
+      if (number != null) {
+        debugPrint('🔢 Updating task by number: $number');
 
-      if (number < 1 || number > _tasks.length) {
-        addSystemErrorMessage(
-          'Invalid task number. You have ${_tasks.length} tasks (1-${_tasks.length}).',
-        );
-        return;
+        if (number < 1 || number > _tasks.length) {
+          addSystemErrorMessage('Invalid task number. You have ${_tasks.length} tasks (1-${_tasks.length}).');
+          return;
+        }
+        taskIndex = number - 1;
+      } else {
+        debugPrint('🆔 Updating task by ID: $id');
+        taskIndex = _tasks.indexWhere((task) => task.id == id);
+
       }
 
-      taskIndex = number - 1;
-    } else {
-      // User provided task ID
-      debugPrint('🆔 Updating task by ID: $id');
-      taskIndex = _tasks.indexWhere((task) => task.id == id);
-    }
+      final taskToUpdate = _tasks[taskIndex];
+      final oldTask = TaskModel.fromJson(taskToUpdate.toJson());
 
-    final oldTask = TaskModel.fromJson(_tasks[taskIndex].toJson());
-    _tasks[taskIndex] = _tasks[taskIndex].copyWith(
-      title: title,
-      description: description,
-      scheduledTime: scheduledTime,
-      status: status,
-    );
-    notifyListeners();
+      debugPrint('📝 Updating task in Firestore: ${taskToUpdate.title}');
 
-    // Notify Gemini about task update for context synchronization
-    final updatedTask = _tasks[taskIndex];
-    Future.delayed(const Duration(seconds: 3), () {
-      _notifyGeminiTaskOperation('updated', {
-        'id': updatedTask.id,
-        'title': updatedTask.title,
-        'description': updatedTask.description,
-        'scheduled_time': updatedTask.scheduledTime.toIso8601String(),
-        'status': updatedTask.status.name,
-        'previous_title': oldTask.title,
-        'previous_description': oldTask.title,
-        'previous_scheduled_time': oldTask.title,
-        'previous_status': oldTask.status.name,
+      final updateData = <String, dynamic>{
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      };
+
+      if (title != null) updateData['title'] = title;
+      if (description != null) updateData['description'] = description;
+      if (scheduledTime != null) updateData['scheduledTime'] = scheduledTime.toIso8601String();
+      if (status != null) updateData['status'] = status.name;
+
+      // Update in Firestore using the task ID
+      await FirebaseFirestore.instance
+          .collection('tasks')
+          .doc(_firebaseService!.currentUserId)
+          .collection('tasks')
+          .doc(taskToUpdate.id)
+          .update(updateData);
+
+      debugPrint('✅ Task updated in Firestore: ${taskToUpdate.title}');
+
+      // Notify Gemini about task update for context synchronization
+      // Real-time listener will automatically update local _tasks array
+      Future.delayed(const Duration(seconds: 3), () {
+        _notifyGeminiTaskOperation('updated', {
+          'id': taskToUpdate.id,
+          'title': title ?? taskToUpdate.title,
+          'description': description ?? taskToUpdate.description,
+          'scheduled_time': (scheduledTime ?? taskToUpdate.scheduledTime).toIso8601String(),
+          'status': (status ?? taskToUpdate.status).name,
+          'previous_title': oldTask.title,
+          'previous_description': oldTask.description,
+          'previous_scheduled_time': oldTask.scheduledTime.toIso8601String(),
+          'previous_status': oldTask.status.name,
+        });
       });
-    });
+
+    } catch (e) {
+      debugPrint('❌ Error updating task in Firestore: $e');
+      addSystemErrorMessage('Failed to update task: $e');
+    }
   }
 
   Future<void> deleteTask({String? id, int? number}) async {
@@ -530,6 +549,7 @@ class TaskProvider extends ChangeNotifier {
 
     final title = arguments['title'] as String?;
     final description = arguments['description'] as String?;
+    debugPrint('New date:: ${arguments['scheduled_time']}');
     final scheduledTime = DateTime.tryParse(
       (arguments['scheduled_time'] as String?) ?? "",
     );
